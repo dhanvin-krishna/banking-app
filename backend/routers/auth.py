@@ -4,6 +4,9 @@ from database import get_db
 from models.users import User, UserRole
 from schemas.user import UserCreate,UserResponse
 from utils.security import hash_password
+from utils.security import hash_password, verify_password
+from utils.jwt import create_access_token
+from schemas.user import Userlogin, TokenResponse
 
 router = APIRouter(prefix="/auth",tags=["Authentication"])
 
@@ -29,4 +32,16 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
     db.refresh(new_user)
 
     return new_user
+
+@router.post("/login",response_model=TokenResponse)
+def login(user_data: Userlogin, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == user_data.email).first()
+    if not user:
+        raise HTTPException(status_code=404,detail="User not found")
+    if not verify_password(user_data.password, user.hashed_password):
+        raise HTTPException(status_code=401,detail="Invalid credentials")
+
+    token = create_access_token(data = {"sub": user.email, "role": user.role.value})
+
+    return TokenResponse(access_token = token , token_type="bearer")
     
